@@ -6,23 +6,32 @@ dotenv.config()
 
 const clientId = process.env.SPOTIFY_CLIENT_ID
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
+const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN
 const playlistId = process.env.SPOTIFY_PLAYLIST_ID
 const userId = process.env.SPOTIFY_USER_ID
 
 const getAccessToken = async () => {
-	const response = await axios.post(
-		'https://accounts.spotify.com/api/token',
-		'grant_type=client_credentials',
-		{
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				Authorization:
-					'Basic ' +
-					Buffer.from(clientId + ':' + clientSecret).toString('base64'),
-			},
-		}
-	)
-	return response.data.access_token
+	try {
+		const response = await axios.post(
+			'https://accounts.spotify.com/api/token',
+			null,
+			{
+				params: {
+					grant_type: 'refresh_token',
+					refresh_token: refreshToken,
+					client_id: clientId,
+					client_secret: clientSecret,
+				},
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+				},
+			}
+		)
+
+		return response.data.access_token
+	} catch (error) {
+		console.error('Error refreshing access token:', error.response.data)
+	}
 }
 
 const getAllPlaylistTracks = async (accessToken, playlistId) => {
@@ -82,22 +91,37 @@ const createNewPlaylist = async (accessToken, userId, playlistName) => {
 }
 
 const addTracksToPlaylist = async (accessToken, playlistId, trackUris) => {
-	try {
-		await axios.post(
-			`https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
-			{
-				uris: trackUris,
-			},
-			{
-				headers: {
-					Authorization: `Bearer ${accessToken}`,
-					'Content-Type': 'application/json',
+	const batchSize = 50 // Set the batch size to 50 or another appropriate number
+	for (let i = 0; i < trackUris.length; i += batchSize) {
+		const batch = trackUris.slice(i, i + batchSize)
+
+		// Log the current batch for debugging
+		// console.log(`Adding batch ${i / batchSize + 1} with URIs:`, batch)
+
+		try {
+			await axios.post(
+				`https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+				{
+					uris: batch,
 				},
-			}
-		)
-		console.log('Tracks added to the playlist successfully!')
-	} catch (error) {
-		console.error('Error adding tracks to the playlist:', error)
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						'Content-Type': 'application/json',
+					},
+				}
+			)
+			console.log(`Batch ${i / batchSize + 1} added successfully!`)
+		} catch (error) {
+			console.error(
+				`Error adding batch ${i / batchSize + 1}:`,
+				error.response?.data || error
+			)
+			return // Stop processing if there is an error
+		}
+
+		// Add a delay between batches
+		await delay(1000) // Adjust the delay as needed
 	}
 }
 
@@ -107,6 +131,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 	try {
 		console.log('Fetching Spotify playlist tracks...')
 		const accessToken = await getAccessToken()
+
 		const tracks = await getAllPlaylistTracks(accessToken, playlistId)
 
 		let fullTrackArray = []
@@ -145,33 +170,25 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 			trackUris.push(track.track.uri)
 
 			// Delay before the next request
-			await delay(20)
+			await delay(10)
 		}
+
+		// filter out any invalid spotify uris
+		const validTrackUris = trackUris.filter(uri => uri.startsWith('spotify:track:'));
 
 		// Create a new playlist
 		const newPlaylistId = await createNewPlaylist(
 			accessToken,
 			userId,
-			'Safe Playlist'
+			'Safe Playlist For Rate'
 		)
 
-		setTimeout(() => {
-			// Add the safe tracks to the new playlist
-			if (newPlaylistId) {
-				console.log('New Playlist ID: ', newPlaylistId)
-			} else {
-				console.log('No new playlist ID')
-			}
-		}, 1000)
-
 		// Add the safe tracks to the new playlist
-		// await addTracksToPlaylist(accessToken, newPlaylistId, trackUris)
+		await addTracksToPlaylist(accessToken, newPlaylistId, validTrackUris)
 
-		// console.log('Playable Tracks: ')
-		// console.log(fullTrackArray)
-		// console.log('------------------------')
 		console.log('Original Playlist Length: ', tracks.length)
 		console.log('Restricted Track Array: ', restrictedTracks.length)
+		console.log(restrictedTracks)
 		console.log('Clean Track Array: ', fullTrackArray.length)
 	} catch (error) {
 		console.error('Error fetching playlist tracks:', error)
