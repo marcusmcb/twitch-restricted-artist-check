@@ -117,11 +117,9 @@ const addTracksToPlaylist = async (accessToken, playlistId, trackUris) => {
 				`Error adding batch ${i / batchSize + 1}:`,
 				error.response?.data || error
 			)
-			return // Stop processing if there is an error
+			return
 		}
-
-		// Add a delay between batches
-		await delay(1000) // Adjust the delay as needed
+		await delay(1000)
 	}
 }
 
@@ -137,12 +135,15 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		let fullTrackArray = []
 		let restrictedTracks = []
 		let trackUris = []
-		let invalidTracks = [] // Array to store invalid tracks
+		let invalidTracks = []
 
 		for (const track of tracks) {
-			const artistNames = track.track.artists.map((artist) => artist.name)
-			const isRestricted = artistNames.some((artist) =>
-				restrictedArtists.includes(artist)
+			const artistNames = track.track.artists.map((artist) =>
+				artist.name !== null ? artist.name.toLowerCase() : null
+			) // normalize artist names to lowercase
+			const isRestricted = artistNames.some(
+				(artist) =>
+					restrictedArtists.map((ra) => ra.toLowerCase()).includes(artist) // Normalize restrictedArtists to lowercase
 			)
 
 			if (isRestricted) {
@@ -157,10 +158,11 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 					'by',
 					artistNames.join(', ')
 				)
+				console.log('-----------------------')
 				continue
 			}
 
-			// Validate URI and log invalid ones
+			// validate URI and log invalid ones
 			const uri = track.track.uri
 			if (uri.startsWith('spotify:track:')) {
 				const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
@@ -181,12 +183,13 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 				})
 			}
 
-			// Delay before the next request
+			// delay before the next request
 			await delay(10)
 		}
 
 		if (invalidTracks.length > 0) {
 			console.log('Found invalid URIs:')
+			console.log('-----------------------')
 			invalidTracks.forEach((track) => {
 				console.log(
 					`Track: ${track.title} by ${track.artist}, URI: ${track.uri}`
@@ -194,20 +197,27 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 			})
 		}
 
-		// Create a new playlist
+		// create a new playlist
 		const newPlaylistId = await createNewPlaylist(
 			accessToken,
 			userId,
 			'Safe Playlist For Rate'
 		)
 
-		// Add the safe tracks to the new playlist
+		// add the safe tracks to the new playlist
 		await addTracksToPlaylist(accessToken, newPlaylistId, trackUris)
 
 		console.log('Original Playlist Length: ', tracks.length)
-		console.log('Restricted Track Array: ', restrictedTracks.length)
-		console.log(restrictedTracks)
 		console.log('Clean Track Array: ', fullTrackArray.length)
+		console.log('Restricted Track Array: ', restrictedTracks.length)
+		console.log('Invalid Track Array: ', invalidTracks.length)
+		console.log('-----------------------')
+		console.log('Restricted Tracks: ')
+		console.log(restrictedTracks)
+		console.log('-----------------------')
+		console.log('Invalid Tracks: ')
+		console.log(invalidTracks)
+		console.log('-----------------------')
 	} catch (error) {
 		console.error('Error fetching playlist tracks:', error)
 	}
