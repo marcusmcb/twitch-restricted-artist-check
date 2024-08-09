@@ -72,7 +72,7 @@ const createNewPlaylist = async (accessToken, userId, playlistName) => {
 			{
 				name: playlistName,
 				description: 'A playlist free of restricted artists',
-				public: false,
+				public: true,
 			},
 			{
 				headers: {
@@ -137,6 +137,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		let fullTrackArray = []
 		let restrictedTracks = []
 		let trackUris = []
+		let invalidTracks = [] // Array to store invalid tracks
 
 		for (const track of tracks) {
 			const artistNames = track.track.artists.map((artist) => artist.name)
@@ -159,22 +160,39 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 				continue
 			}
 
-			const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
-			const trackEntry = {
-				title: track.track.name,
-				artist: artistNames.join(', '),
-				added: addedBy,
-				spotify_url: track.track.external_urls.spotify,
+			// Validate URI and log invalid ones
+			const uri = track.track.uri
+			if (uri.startsWith('spotify:track:')) {
+				const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
+				const trackEntry = {
+					title: track.track.name,
+					artist: artistNames.join(', '),
+					added: addedBy,
+					spotify_url: track.track.external_urls.spotify,
+				}
+				fullTrackArray.push(trackEntry)
+				trackUris.push(uri)
+			} else {
+				console.log('Invalid URI:', uri)
+				invalidTracks.push({
+					title: track.track.name,
+					artist: artistNames.join(', '),
+					uri: uri,
+				})
 			}
-			fullTrackArray.push(trackEntry)
-			trackUris.push(track.track.uri)
 
 			// Delay before the next request
 			await delay(10)
 		}
 
-		// filter out any invalid spotify uris
-		const validTrackUris = trackUris.filter(uri => uri.startsWith('spotify:track:'));
+		if (invalidTracks.length > 0) {
+			console.log('Found invalid URIs:')
+			invalidTracks.forEach((track) => {
+				console.log(
+					`Track: ${track.title} by ${track.artist}, URI: ${track.uri}`
+				)
+			})
+		}
 
 		// Create a new playlist
 		const newPlaylistId = await createNewPlaylist(
@@ -184,7 +202,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		)
 
 		// Add the safe tracks to the new playlist
-		await addTracksToPlaylist(accessToken, newPlaylistId, validTrackUris)
+		await addTracksToPlaylist(accessToken, newPlaylistId, trackUris)
 
 		console.log('Original Playlist Length: ', tracks.length)
 		console.log('Restricted Track Array: ', restrictedTracks.length)
