@@ -199,6 +199,99 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const generateSafePlaylist = async (playlistId) => {
 	console.log('Generating safe playlist...')
 	console.log('Playlist ID: ', playlistId)
+	try {
+		const accessToken = await getAccessToken()
+		const tracks = await getAllPlaylistTracks(accessToken, playlistId)
+
+		let fullTrackArray = []
+		let restrictedTracks = []
+		let trackUris = []
+		let invalidTracks = []
+
+		for (const track of tracks) {
+			const artistNames = track.track.artists.map((artist) =>
+				artist.name !== null ? artist.name.toLowerCase() : null
+			) // normalize artist names to lowercase
+			const isRestricted = artistNames.some(
+				(artist) =>
+					restrictedArtists.map((ra) => ra.toLowerCase()).includes(artist) // Normalize restrictedArtists to lowercase
+			)
+
+			if (isRestricted) {
+				const trackEntry = {
+					title: track.track.name,
+					artist: artistNames.join(', '),
+				}
+				restrictedTracks.push(trackEntry)
+				console.log(
+					'Restricted Track:',
+					track.track.name,
+					'by',
+					artistNames.join(', ')
+				)
+				console.log('-----------------------')
+				continue
+			}
+
+			// validate URI and log invalid ones
+			const uri = track.track.uri
+			if (uri.startsWith('spotify:track:')) {
+				// const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
+				const trackEntry = {
+					title: track.track.name,
+					artist: artistNames.join(', '),
+					// added: addedBy,
+					spotify_url: track.track.external_urls.spotify,
+				}
+				fullTrackArray.push(trackEntry)
+				trackUris.push(uri)
+			} else {
+				console.log('Invalid URI:', uri)
+				invalidTracks.push({
+					title: track.track.name,
+					artist: artistNames.join(', '),
+					uri: uri,
+				})
+			}
+
+			// delay before the next request
+			await delay(10)
+		}
+
+		if (invalidTracks.length > 0) {
+			console.log('Found invalid URIs:')
+			console.log('-----------------------')
+			invalidTracks.forEach((track) => {
+				console.log(
+					`Track: ${track.title} by ${track.artist}, URI: ${track.uri}`
+				)
+			})
+		}
+
+		// create a new playlist
+		const newPlaylistId = await createNewPlaylist(
+			accessToken,
+			userId,
+			'Twitch Safe Playlist'
+		)
+
+		// add the safe tracks to the new playlist
+		await addTracksToPlaylist(accessToken, newPlaylistId, trackUris)
+
+		console.log('Original Playlist Length: ', tracks.length)
+		console.log('Clean Track Array: ', fullTrackArray.length)
+		console.log('Restricted Track Array: ', restrictedTracks.length)
+		console.log('Invalid Track Array: ', invalidTracks.length)
+		console.log('-----------------------')
+		console.log('Restricted Tracks: ')
+		console.log(restrictedTracks)
+		console.log('-----------------------')
+		console.log('Invalid Tracks: ')
+		console.log(invalidTracks)
+		console.log('-----------------------')
+	} catch (error) {
+		console.error('Error generating safe playlist:', error)
+	}
 }
 
 app.get('/', async (req, res) => {
@@ -207,10 +300,15 @@ app.get('/', async (req, res) => {
 
 app.post('/submitplaylist', async (req, res) => {
 	console.log(req.body)
+
 	// substitute playlistId with playlistUrl that the
 	// user will paste into the client form and submit
-	await generateSafePlaylist(req.body.playlistId)
-	res.send('Auth route')
+
+	// create helper method to extract playlistId
+	// from playlistUrl
+
+	await generateSafePlaylist(playlistId)
+	res.send('Playlist submitted')
 })
 
 app.listen(PORT, () => {
