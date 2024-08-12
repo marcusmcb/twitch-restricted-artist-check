@@ -300,13 +300,6 @@ app.get('/', async (req, res) => {
 
 app.post('/submitplaylist', async (req, res) => {
 	console.log(req.body)
-
-	// substitute playlistId with playlistUrl that the
-	// user will paste into the client form and submit
-
-	// create helper method to extract playlistId
-	// from playlistUrl
-
 	await generateSafePlaylist(playlistId)
 	res.send('Playlist submitted')
 })

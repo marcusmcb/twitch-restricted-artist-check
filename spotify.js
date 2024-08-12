@@ -7,8 +7,9 @@ dotenv.config()
 const clientId = process.env.SPOTIFY_CLIENT_ID
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
 const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN
-const playlistId = process.env.SPOTIFY_PLAYLIST_ID
 const userId = process.env.SPOTIFY_USER_ID
+
+const playlistUrl = 'https://open.spotify.com/playlist/3S3k79OSkJByz7bhJAYX9x'
 
 const getAccessToken = async () => {
 	try {
@@ -31,6 +32,27 @@ const getAccessToken = async () => {
 		return response.data.access_token
 	} catch (error) {
 		console.error('Error refreshing access token:', error.response.data)
+	}
+}
+
+const extractPlaylistId = (url) => {
+	const regex = /playlist\/([a-zA-Z0-9]+)/
+	const match = url.match(regex)
+	return match ? match[1] : null
+}
+
+const getSpotifyPlaylistTitle = async (accessToken, playlistId) => {
+	try {
+		const response = await axios.get(
+			`https://api.spotify.com/v1/playlists/${playlistId}`,
+			{
+				headers: { Authorization: `Bearer ${accessToken}` },
+			}
+		)
+		return response.data.name
+	} catch (error) {
+		console.error('Error fetching playlist title:', error)
+		return 'playlist title unavailable'
 	}
 }
 
@@ -91,13 +113,9 @@ const createNewPlaylist = async (accessToken, userId, playlistName) => {
 }
 
 const addTracksToPlaylist = async (accessToken, playlistId, trackUris) => {
-	const batchSize = 50 // Set the batch size to 50 or another appropriate number
+	const batchSize = 50 // set the batch size per Spotify's API requirements
 	for (let i = 0; i < trackUris.length; i += batchSize) {
 		const batch = trackUris.slice(i, i + batchSize)
-
-		// Log the current batch for debugging
-		// console.log(`Adding batch ${i / batchSize + 1} with URIs:`, batch)
-
 		try {
 			await axios.post(
 				`https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
@@ -125,11 +143,14 @@ const addTracksToPlaylist = async (accessToken, playlistId, trackUris) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-;(async () => {
+const getSafePlaylist = async (playlistUrl) => {
 	try {
+		const playlistId = extractPlaylistId(playlistUrl)
+		console.log('Playlist ID:', playlistId)
 		console.log('Fetching Spotify playlist tracks...')
 		const accessToken = await getAccessToken()
-
+		const playlistTitle = await getSpotifyPlaylistTitle(accessToken, playlistId)
+		setTimeout(() => console.log('Playlist Title: ', playlistTitle), 1000)
 		const tracks = await getAllPlaylistTracks(accessToken, playlistId)
 
 		let fullTrackArray = []
@@ -140,10 +161,9 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		for (const track of tracks) {
 			const artistNames = track.track.artists.map((artist) =>
 				artist.name !== null ? artist.name.toLowerCase() : null
-			) // normalize artist names to lowercase
-			const isRestricted = artistNames.some(
-				(artist) =>
-					restrictedArtists.map((ra) => ra.toLowerCase()).includes(artist) // Normalize restrictedArtists to lowercase
+			)
+			const isRestricted = artistNames.some((artist) =>
+				restrictedArtists.map((ra) => ra.toLowerCase()).includes(artist)
 			)
 
 			if (isRestricted) {
@@ -165,11 +185,11 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 			// validate URI and log invalid ones
 			const uri = track.track.uri
 			if (uri.startsWith('spotify:track:')) {
-				const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
+				// const addedBy = await getSpotifyUserName(accessToken, track.added_by.id)
 				const trackEntry = {
 					title: track.track.name,
 					artist: artistNames.join(', '),
-					added: addedBy,
+					// added: addedBy,
 					spotify_url: track.track.external_urls.spotify,
 				}
 				fullTrackArray.push(trackEntry)
@@ -201,7 +221,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		const newPlaylistId = await createNewPlaylist(
 			accessToken,
 			userId,
-			'Safe Playlist For Rate'
+			'(SAFE) ' + playlistTitle
 		)
 
 		// add the safe tracks to the new playlist
@@ -221,4 +241,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 	} catch (error) {
 		console.error('Error fetching playlist tracks:', error)
 	}
-})()
+}
+
+getSafePlaylist(playlistUrl)
