@@ -105,8 +105,14 @@ const createNewPlaylist = async (accessToken, userId, playlistName) => {
 		)
 		if (response.data.id) {
 			console.log('New playlist created successfully!')
+			console.log('-----------------------')
+			console.log(response.data.external_urls.spotify)			
+			console.log('-----------------------')
 		}
-		return response.data.id
+		return {
+			playlistId: response.data.id,
+			playlistUrl: response.data.external_urls.spotify,
+		}
 	} catch (error) {
 		console.error('Error creating new playlist:', error)
 	}
@@ -218,26 +224,21 @@ const getSafePlaylist = async (playlistUrl) => {
 		}
 
 		// create a new playlist
-		const newPlaylistId = await createNewPlaylist(
+		const newPlaylistData = await createNewPlaylist(
 			accessToken,
 			userId,
 			'(SAFE) ' + playlistTitle
 		)
-
+		
 		// add the safe tracks to the new playlist
-		await addTracksToPlaylist(accessToken, newPlaylistId, trackUris)
+		await addTracksToPlaylist(accessToken, newPlaylistData.playlistId, trackUris)		
 
 		console.log('Original Playlist Length: ', tracks.length)
 		console.log('Clean Track Array: ', fullTrackArray.length)
 		console.log('Restricted Track Array: ', restrictedTracks.length)
-		console.log('Invalid Track Array: ', invalidTracks.length)
-		console.log('-----------------------')
-		console.log('Restricted Tracks: ')
-		console.log(restrictedTracks)
-		console.log('-----------------------')
-		console.log('Invalid Tracks: ')
-		console.log(invalidTracks)
-		console.log('-----------------------')
+		console.log('Invalid Track Array: ', invalidTracks.length)		
+		console.log('New Playlist URL:', newPlaylistData.playlistUrl)
+		return newPlaylistData.playlistUrl
 	} catch (error) {
 		console.error('Error fetching playlist tracks:', error)
 	}
