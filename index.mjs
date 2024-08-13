@@ -11,6 +11,11 @@ export const handler = async (event) => {
 	console.log('EVENT: ', event.body)
 	console.log('PLAYLIST URL: ', body.playlistUrl)
 
+	let fullTrackArray = []
+	let restrictedTracks = []
+	let trackUris = []
+	let invalidTracks = []
+
 	const getAccessToken = async () => {
 		try {
 			const response = await axios.post(
@@ -162,11 +167,6 @@ export const handler = async (event) => {
 			setTimeout(() => console.log('Playlist Title: ', playlistTitle), 1000)
 			const tracks = await getAllPlaylistTracks(accessToken, playlistId)
 
-			let fullTrackArray = []
-			let restrictedTracks = []
-			let trackUris = []
-			let invalidTracks = []
-
 			for (const track of tracks) {
 				const artistNames = track.track.artists.map((artist) =>
 					artist.name !== null ? artist.name.toLowerCase() : null
@@ -257,12 +257,14 @@ export const handler = async (event) => {
 		statusCode: 200,
 		headers: {
 			'Content-Type': 'application/json',
-			'Access-Control-Allow-Origin': '*', 
+			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Allow-Headers': 'Content-Type',
 			'Access-Control-Allow-Methods': 'OPTIONS,POST',
 		},
 		body: JSON.stringify({
 			url: newUrl,
+			removed_tracks: restrictedTracks,
+			invalid_tracks: invalidTracks,
 		}),
 	}
 
