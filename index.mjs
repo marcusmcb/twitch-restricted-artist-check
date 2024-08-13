@@ -7,7 +7,9 @@ const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN
 const userId = process.env.SPOTIFY_USER_ID
 
 export const handler = async (event) => {
-	console.log(event.playlistUrl)
+	const body = JSON.parse(event.body)
+	console.log('EVENT: ', event.body)
+	console.log('PLAYLIST URL: ', body.playlistUrl)
 
 	const getAccessToken = async () => {
 		try {
@@ -249,13 +251,16 @@ export const handler = async (event) => {
 		}
 	}
 
-	const newUrl = await getSafePlaylist(event.playlistUrl)
+	const newUrl = await getSafePlaylist(body.playlistUrl)
 
 	const response = {
 		statusCode: 200,
-		body: {
-			url: newUrl,
+		headers: {
+			'Content-Type': 'application/json',
 		},
+		body: JSON.stringify({
+			url: newUrl,
+		}),
 	}
 
 	return response
