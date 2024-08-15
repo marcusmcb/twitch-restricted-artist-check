@@ -168,6 +168,9 @@ export const handler = async (event) => {
 			const tracks = await getAllPlaylistTracks(accessToken, playlistId)
 
 			for (const track of tracks) {
+				const originalArtistNames = track.track.artists.map((artist) =>
+					artist.name !== null ? artist.name : null
+				)
 				const artistNames = track.track.artists.map((artist) =>
 					artist.name !== null ? artist.name.toLowerCase() : null
 				)
@@ -178,7 +181,7 @@ export const handler = async (event) => {
 				if (isRestricted) {
 					const trackEntry = {
 						title: track.track.name,
-						artist: artistNames.join(', '),
+						artist: originalArtistNames.join(', '),
 					}
 					restrictedTracks.push(trackEntry)
 					console.log(
@@ -224,6 +227,15 @@ export const handler = async (event) => {
 						`Track: ${track.title} by ${track.artist}, URI: ${track.uri}`
 					)
 				})
+			}
+
+			if (restrictedTracks.length === 0 && invalidTracks.length === 0) {
+				console.log('No restricted tracks found!')
+				// return response
+			} else {
+				// createNewPlaylist
+				// addTracksToPlaylist
+				// return response
 			}
 
 			// create a new playlist
